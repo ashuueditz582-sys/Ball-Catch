@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Arena Clash</title>
+<meta name="theme-color" content="#050714">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; user-select:none; }
+  html, body { width:100%; height:100%; overflow:hidden; background:#050714; font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; touch-action: none; }
+
+  .menuWrap {
+    position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:24px; text-align:center; z-index:10;
+  }
+  .hidden { display:none !important; }
+
+  .title { font-size:40px; font-weight:800; color:#fff; margin-bottom:6px; }
+  .title span { color:#4ef0c8; }
+  .subtitle { color:#7a80a8; font-size:14px; margin-bottom:36px; }
+
+  .btn {
+    padding:16px 44px; font-size:18px; font-weight:700; color:#050714;
+    background:#4ef0c8; border:none; border-radius:40px; cursor:pointer;
+    box-shadow: 0 6px 0 #2bb894; margin:8px 0; width:260px;
+  }
+  .btn:active { transform: translateY(6px); box-shadow:0 0 0 #2bb894; }
+  .btn.secondary { background:#1a2144; color:#fff; box-shadow:0 6px 0 #0d1330; }
+  .btn.secondary:active { box-shadow:0 0 0 #0d1330; }
+
+  input.codeInput {
+    width:260px; padding:16px; font-size:26px; letter-spacing:8px; text-align:center;
+    border-radius:16px; border:2px solid #2a3163; background:#0d1330; color:#fff;
+    margin-bottom:16px; font-weight:800;
+  }
+  input.codeInput:focus { outline:none; border-color:#4ef0c8; }
+
+  .roomCode { font-size:52px; font-weight:800; color:#4ef0c8; letter-spacing:8px; margin:20px 0; }
+  .hint { color:#7a80a8; font-size:14px; margin-bottom:10px; }
+  .dots { display:flex; gap:10px; margin:24px 0; }
+  .dot { width:10px; height:10px; border-radius:50%; background:#2a3163; animation: pulse 1.2s infinite ease-in-out; }
+  .dot:nth-child(2){ animation-delay:0.2s; } .dot:nth-child(3){ animation-delay:0.4s; }
+  @keyframes pulse { 0%,100%{ opacity:0.3; transform:scale(1);} 50%{ opacity:1; transform:scale(1.4); background:#4ef0c8;} }
+
+  .scoreRow { display:flex; gap:50px; margin:10px 0 30px; }
+  .scoreCol { text-align:center; }
+  .scoreCol .num { font-size:38px; font-weight:800; color:#fff; }
+  .scoreCol .lbl { font-size:12px; color:#7a80a8; letter-spacing:1px; }
+
+  .toast {
+    position:fixed; top:24px; left:50%; transform:translateX(-50%);
+    background:#1a2144; color:#fff; padding:10px 20px; border-radius:20px; font-size:13px;
+    opacity:0; transition:opacity 0.3s; pointer-events:none; z-index:50;
+  }
+  .toast.show { opacity:1; }
+
+  /* ---------- BATTLE UI ---------- */
+  #battleScreen { position:fixed; inset:0; z-index:5; }
+  #arenaCanvas { display:block; width:100%; height:100%; }
+
+  #battleHud {
+    position:fixed; top:0; left:0; right:0; padding:14px 16px; z-index:6; pointer-events:none;
+  }
+  .hpRow { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .hpBox { flex:1; }
+  .hpBox.right { text-align:right; }
+  .hpLabel { color:#fff; font-size:11px; font-weight:700; letter-spacing:1px; margin-bottom:4px; }
+  .hpBarBg { height:14px; border-radius:8px; background:rgba(255,255,255,0.12); overflow:hidden; }
+  .hpBarFill { height:100%; background:#4ef0c8; border-radius:8px; transition: width 0.15s; }
+  .hpBarFill.opp { background:#ff6b6b; float:right; }
+  .roundTag {
+    text-align:center; color:#ffcf5c; font-size:13px; font-weight:800; letter-spacing:1px;
+    margin-top:8px;
+  }
+  .matchScoreTag {
+    text-align:center; color:#7a80a8; font-size:12px; margin-top:2px;
+  }
+
+  #countdownOverlay {
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    z-index:9; pointer-events:none;
+  }
+  #countdownNum { font-size:100px; font-weight:800; color:#4ef0c8; text-shadow: 0 0 30px rgba(78,240,200,0.6); }
+
+  #fireBtn {
+    position:fixed; bottom:38px; right:32px; width:82px; height:82px; border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, #ff8a6b, #ff5b3d);
+    border:4px solid rgba(255,255,255,0.25);
+    color:#fff; font-weight:800; font-size:14px; letter-spacing:1px;
+    display:flex; align-items:center; justify-content:center; z-index:6;
+    box-shadow: 0 6px 20px rgba(255,91,61,0.5);
+  }
+  #fireBtn:active { transform: scale(0.92); }
+
+  #joyBase, #joyStick { position:fixed; border-radius:50%; z-index:6; pointer-events:none; display:none; }
+  #joyBase { width:110px; height:110px; background:rgba(255,255,255,0.08); border:2px solid rgba(255,255,255,0.15); }
+  #joyStick { width:50px; height:50px; background:rgba(78,240,200,0.5); }
+
+  .resultOverlay {
+    position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background: rgba(5,7,20,0.92); z-index:15; text-align:center; padding:24px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ MENU FLOW ============ -->
+<div class="menuWrap" id="screen-menu">
+  <div class="title">ARENA <span>CLASH</span></div>
+  <div class="subtitle">1v1 real-time battle arena</div>
+  <button class="btn" id="btnCreate">CREATE ROOM</button>
+  <button class="btn secondary" id="btnShowJoin">JOIN ROOM</button>
+</div>
+
+<div class="menuWrap hidden" id="screen-join">
+  <div class="title" style="font-size:28px;">Enter Code</div>
+  <div class="subtitle">Ask your friend for the room code</div>
+  <input type="tel" maxlength="4" class="codeInput" id="joinInput" placeholder="0000">
+  <br>
+  <button class="btn" id="btnJoin">JOIN</button>
+  <button class="btn secondary" id="btnBackFromJoin">BACK</button>
+</div>
+
+<div class="menuWrap hidden" id="screen-lobby">
+  <div class="hint">SHARE THIS CODE</div>
+  <div class="roomCode" id="lobbyCode">0000</div>
+  <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+  <div class="subtitle" id="lobbyStatus">Waiting for opponent...</div>
+  <button class="btn secondary" id="btnCancelLobby">CANCEL</button>
+</div>
+
+<div class="menuWrap hidden" id="screen-ready">
+  <div class="scoreRow">
+    <div class="scoreCol"><div class="num" id="scoreYou">0</div><div class="lbl">YOU</div></div>
+    <div class="scoreCol"><div class="num" id="scoreOpp">0</div><div class="lbl">OPPONENT</div></div>
+  </div>
+  <div class="title" style="font-size:26px;" id="readyTitle">Round 1</div>
+  <div class="subtitle">Tap ready when you're set</div>
+  <button class="btn" id="btnReady">I'M READY</button>
+  <div class="hint" id="readyWaitTag" style="margin-top:14px;"></div>
+</div>
+
+<div class="menuWrap hidden" id="screen-matchover">
+  <div class="title" id="matchTitle" style="font-size:34px;">YOU <span>WON!</span></div>
+  <div class="subtitle">First to 3 round wins takes the match</div>
+  <button class="btn" id="btnRematch">REMATCH</button>
+  <button class="btn secondary" id="btnMenu">MAIN MENU</button>
+</div>
+
+<!-- ============ BATTLE SCREEN ============ -->
+<div id="battleScreen" class="hidden">
+  <canvas id="arenaCanvas"></canvas>
+
+  <div id="battleHud">
+    <div class="hpRow">
+      <div class="hpBox">
+        <div class="hpLabel">YOU</div>
+        <div class="hpBarBg"><div class="hpBarFill" id="hpYou" style="width:100%"></div></div>
+      </div>
+      <div class="hpBox right">
+        <div class="hpLabel">OPPONENT</div>
+        <div class="hpBarBg"><div class="hpBarFill opp" id="hpOpp" style="width:100%"></div></div>
+      </div>
+    </div>
+    <div class="roundTag" id="battleRoundTag">ROUND 1</div>
+    <div class="matchScoreTag" id="battleScoreTag">0 - 0</div>
+  </div>
+
+  <div id="joyBase"></div>
+  <div id="joyStick"></div>
+  <div id="fireBtn">FIRE</div>
+</div>
+
+<div id="countdownOverlay" class="hidden"><div id="countdownNum">3</div></div>
+
+<div class="resultOverlay hidden" id="roundOverScreen">
+  <div class="title" id="roundOverTitle" style="font-size:32px;">ROUND WON</div>
+  <div class="scoreRow">
+    <div class="scoreCol"><div class="num" id="scoreYouR">0</div><div class="lbl">YOU</div></div>
+    <div class="scoreCol"><div class="num" id="scoreOppR">0</div><div class="lbl">OPPONENT</div></div>
+  </div>
+  <div class="hint">Next round starting...</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<script>
+(function(){
+  "use strict";
+
+  // ============================================================
+  // ⚠️ PASTE YOUR FIREBASE CONFIG HERE (from Firebase Console)
+  // ============================================================
+  const firebaseConfig = {
+    apiKey: "AIzaSyCiRPFiRAvYu7rVTN0d4hXOZ5VkNXqjmZU",
+    authDomain: "clash-arena-88a2c.firebaseapp.com",
+    databaseURL: "https://clash-arena-88a2c-default-rtdb.firebaseio.com",
+    projectId: "clash-arena-88a2c",
+    storageBucket: "clash-arena-88a2c.firebasestorage.app",
+    messagingSenderId: "673151638148",
+    appId: "1:673151638148:web:d6433d770f784bd02880d1"
+  };
+  // ============================================================
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  const WINS_TO_TAKE_MATCH = 3;
+  const MAX_HP = 100;
+  const BULLET_DMG = 12;
+  const MOVE_SPEED = 3.4;
+  const BULLET_SPEED = 9;
+  const FIRE_COOLDOWN = 340;
+  const HIT_RADIUS = 26;
+  const PLAYER_R = 20;
+  const BULLET_LIFETIME = 1400;
+  const POS_SYNC_INTERVAL = 90;
+
+  // ---------- DOM ----------
+  const screens = {};
+  ['menu','join','lobby','ready','matchover'].forEach(id => screens[id] = document.getElementById('screen-'+id));
+  const battleScreen = document.getElementById('battleScreen');
+  const countdownOverlay = document.getElementById('countdownOverlay');
+  const countdownNum = document.getElementById('countdownNum');
+  const roundOverScreen = document.getElementById('roundOverScreen');
+  const toastEl = document.getElementById('toast');
+  const canvas = document.getElementById('arenaCanvas');
+  const ctx = canvas.getContext('2d');
+
+  function showMenuScreen(name){
+    Object.values(screens).forEach(s => s.classList.add('hidden'));
+    battleScreen.classList.add('hidden');
+    screens[name].classList.remove('hidden');
+  }
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    setTimeout(()=> toastEl.classList.remove('show'), 1800);
+  }
+
+  let W, H;
+  function resize(){
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W; canvas.height = H;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---------- Room state ----------
+  let roomCode = null, isHost = false, roomRef = null, myKey = null, oppKey = null;
+  let listenerAttached = false;
+
+  function genCode(){ return String(Math.floor(1000 + Math.random()*9000)); }
+
+  document.getElementById('btnCreate').addEventListener('click', () => {
+    roomCode = genCode();
+    isHost = true; myKey = 'p1'; oppKey = 'p2';
+    roomRef = db.ref('arena/' + roomCode);
+    roomRef.set({
+      status:'lobby', round:1,
+      p1:{ present:true, ready:false, hp:MAX_HP, x:W*0.25, y:H*0.5, score:0 },
+      p2:{ present:false, ready:false, hp:MAX_HP, x:W*0.75, y:H*0.5, score:0 },
+      createdAt: Date.now()
+    });
+    document.getElementById('lobbyCode').textContent = roomCode;
+    showMenuScreen('lobby');
+    listenRoom();
+  });
+
+  document.getElementById('btnCancelLobby').addEventListener('click', () => {
+    if (roomRef) roomRef.remove();
+    detachListener();
+    showMenuScreen('menu');
+  });
+
+  document.getElementById('btnShowJoin').addEventListener('click', () => showMenuScreen('join'));
+  document.getElementById('btnBackFromJoin').addEventListener('click', () => showMenuScreen('menu'));
+
+  document.getElementById('btnJoin').addEventListener('click', () => {
+    const code = document.getElementById('joinInput').value.trim();
+    if (code.length !== 4){ toast('Enter a 4-digit code'); return; }
+    const ref = db.ref('arena/' + code);
+    ref.once('value').then(snap => {
+      const data = snap.val();
+      if (!data){ toast('Room not found'); return; }
+      if (data.p2 && data.p2.present){ toast('Room is full'); return; }
+      roomCode = code; isHost = false; myKey = 'p2'; oppKey = 'p1';
+      roomRef = ref;
+      roomRef.child('p2').update({ present:true, ready:false, hp:MAX_HP, x:W*0.75, y:H*0.5, score:0 });
+      roomRef.child('status').set('ready');
+      listenRoom();
+    });
+  });
+
+  function listenRoom(){
+    if (listenerAttached) return;
+    listenerAttached = true;
+    roomRef.on('value', snap => {
+      const data = snap.val();
+      if (!data) return;
+      handleRoomUpdate(data);
+    });
+  }
+  function detachListener(){
+    if (roomRef) roomRef.off();
+    listenerAttached = false;
+  }
+
+  let currentRound = 1, myScore = 0, oppScore = 0;
+  let battleActive = false;
+  let processedRoundKey = null;
+
+  function handleRoomUpdate(data){
+    currentRound = data.round || 1;
+    myScore = data[myKey] ? (data[myKey].score||0) : 0;
+    oppScore = data[oppKey] ? (data[oppKey].score||0) : 0;
+
+    if (data.status === 'lobby'){
+      if (data.p2 && data.p2.present && isHost){
+        goToReady();
+      }
+      return;
+    }
+
+    if (data.status === 'ready'){
+      goToReady();
+      const meReady = data[myKey] && data[myKey].ready;
+      const oppReady = data[oppKey] && data[oppKey].ready;
+      const tag = document.getElementById('readyWaitTag');
+      if (meReady && !oppReady) tag.textContent = 'Waiting for opponent...';
+      else if (!meReady && oppReady) tag.textContent = 'Opponent is ready!';
+      else tag.textContent = '';
+
+      if (meReady && oppReady && isHost){
+        roomRef.update({
+          status:'countdown',
+          p1: Object.assign({}, data.p1, { hp:MAX_HP, x:W*0.25, y:H*0.5 }),
+          p2: Object.assign({}, data.p2, { hp:MAX_HP, x:W*0.75, y:H*0.5 })
+        });
+      }
+    }
+
+    if (data.status === 'countdown'){
+      startCountdown();
+    }
+
+    if (data.status === 'playing'){
+      enterBattle(data);
+    }
+
+    if (data.status === 'roundover'){
+      const key = currentRound + '_' + data.roundWinner;
+      if (processedRoundKey !== key){
+        processedRoundKey = key;
+        showRoundOver(data);
+      }
+    }
+
+    if (data.status === 'matchover'){
+      battleActive = false;
+      showMatchOver(data);
+    }
+  }
+
+  function goToReady(){
+    document.getElementById('readyTitle').textContent = 'Round ' + currentRound;
+    document.getElementById('scoreYou').textContent = myScore;
+    document.getElementById('scoreOpp').textContent = oppScore;
+    showMenuScreen('ready');
+  }
+
+  document.getElementById('btnReady').addEventListener('click', () => {
+    roomRef.child(myKey).update({ ready:true });
+  });
+
+  let countdownRunning = false;
+  function startCountdown(){
+    if (countdownRunning) return;
+    countdownRunning = true;
+    Object.values(screens).forEach(s => s.classList.add('hidden'));
+    battleScreen.classList.add('hidden');
+    roundOverScreen.classList.add('hidden');
+    countdownOverlay.classList.remove('hidden');
+    let n = 3;
+    countdownNum.textContent = n;
+    const iv = setInterval(() => {
+      n--;
+      if (n <= 0){
+        clearInterval(iv);
+        countdownOverlay.classList.add('hidden');
+        countdownRunning = false;
+        if (isHost) roomRef.update({ status:'playing' });
+      } else {
+        countdownNum.textContent = n;
+      }
+    }, 700);
+  }
+
+  // ---------- Battle logic ----------
+  let me = { x:0, y:0, hp:MAX_HP, facing:0 };
+  let oppState = { x:0, y:0, hp:MAX_HP };
+  let bullets = []; // local simulated bullets: {id, owner, x, y, vx, vy, spawnT, mine}
+  let lastFireT = 0, lastPosSyncT = 0;
+  let joyActive = false, joyOriginX=0, joyOriginY=0, joyDX=0, joyDY=0;
+  let bulletsRef = null, bulletListenerAttached = false;
+
+  function enterBattle(data){
+    Object.values(screens).forEach(s => s.classList.add('hidden'));
+    countdownOverlay.classList.add('hidden');
+    roundOverScreen.classList.add('hidden');
+    battleScreen.classList.remove('hidden');
+
+    me.x = data[myKey].x; me.y = data[myKey].y; me.hp = data[myKey].hp; me.facing = isHost ? 0 : Math.PI;
+    oppState.x = data[oppKey].x; oppState.y = data[oppKey].y; oppState.hp = data[oppKey].hp;
+    bullets = [];
+    document.getElementById('battleRoundTag').textContent = 'ROUND ' + currentRound;
+    document.getElementById('battleScoreTag').textContent = myScore + ' - ' + oppScore;
+    updateHpBars();
+
+    if (!battleActive){
+      battleActive = true;
+      attachBulletListener();
+      requestAnimationFrame(battleLoop);
+    }
+  }
+
+  function attachBulletListener(){
+    if (bulletListenerAttached) return;
+    bulletListenerAttached = true;
+    bulletsRef = roomRef.child('bullets');
+    bulletsRef.on('child_added', snap => {
+      const b = snap.val();
+      if (!b || b.owner === myKey) return; // don't re-simulate my own bullets from echo
+      bullets.push({
+        id: snap.key, owner:b.owner, x:b.x, y:b.y,
+        vx: Math.cos(b.ang)*BULLET_SPEED, vy: Math.sin(b.ang)*BULLET_SPEED,
+        spawnT: Date.now(), mine:false
+      });
+    });
+  }
+
+  // Opponent position listener (separate lightweight watcher)
+  let oppPosUnsub = false;
+  function watchOpponentPos(){
+    if (oppPosUnsub) return;
+    oppPosUnsub = true;
+    roomRef.child(oppKey).on('value', snap => {
+      const d = snap.val();
+      if (!d) return;
+      oppState.x = d.x; oppState.y = d.y; oppState.hp = d.hp;
+      updateHpBars();
+    });
+  }
+
+  function updateHpBars(){
+    document.getElementById('hpYou').style.width = Math.max(0, (me.hp/MAX_HP*100)) + '%';
+    document.getElementById('hpOpp').style.width = Math.max(0, (oppState.hp/MAX_HP*100)) + '%';
+  }
+
+  // ---------- Controls: joystick (left half) + fire button ----------
+  const joyBase = document.getElementById('joyBase');
+  const joyStick = document.getElementById('joyStick');
+  const fireBtn = document.getElementById('fireBtn');
+  const JOY_RADIUS = 55;
+
+  battleScreen.addEventListener('touchstart', e => {
+    for (const t of e.changedTouches){
+      if (t.clientX < W*0.55 && !joyActive){
+        joyActive = true;
+        joyOriginX = t.clientX; joyOriginY = t.clientY;
+        joyBase.style.left = (joyOriginX-55)+'px'; joyBase.style.top = (joyOriginY-55)+'px';
+        joyStick.style.left = (joyOriginX-25)+'px'; joyStick.style.top = (joyOriginY-25)+'px';
+        joyBase.style.display = 'block'; joyStick.style.display = 'block';
+      }
+    }
+  }, {passive:true});
+
+  battleScreen.addEventListener('touchmove', e => {
+    for (const t of e.changedTouches){
+      if (joyActive && t.clientX < W*0.7){
+        let dx = t.clientX - joyOriginX, dy = t.clientY - joyOriginY;
+        const dist = Math.min(Math.hypot(dx,dy), JOY_RADIUS);
+        const ang = Math.atan2(dy,dx);
+        dx = Math.cos(ang)*dist; dy = Math.sin(ang)*dist;
+        joyDX = dx/JOY_RADIUS; joyDY = dy/JOY_RADIUS;
+        joyStick.style.left = (joyOriginX+dx-25)+'px'; joyStick.style.top = (joyOriginY+dy-25)+'px';
+        if (dist > 8) me.facing = ang;
+      }
+    }
+  }, {passive:true});
+
+  battleScreen.addEventListener('touchend', e => {
+    joyActive = false; joyDX = 0; joyDY = 0;
+    joyBase.style.display = 'none'; joyStick.style.display = 'none';
+  }, {passive:true});
+
+  fireBtn.addEventListener('touchstart', e => {
+    e.stopPropagation();
+    fireBullet();
+  }, {passive:true});
+
+  function fireBullet(){
+    const now = Date.now();
+    if (now - lastFireT < FIRE_COOLDOWN) return;
+    lastFireT = now;
+    const id = 'b'+now+Math.floor(Math.random()*1000);
+    const startX = me.x + Math.cos(me.facing)*(PLAYER_R+6);
+    const startY = me.y + Math.sin(me.facing)*(PLAYER_R+6);
+    bullets.push({ id, owner:myKey, x:startX, y:startY, vx:Math.cos(me.facing)*BULLET_SPEED, vy:Math.sin(me.facing)*BULLET_SPEED, spawnT:now, mine:true });
+    if (bulletsRef){
+      bulletsRef.child(id).set({ owner:myKey, x:startX, y:startY, ang:me.facing, t:now });
+      setTime
