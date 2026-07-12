@@ -1,5 +1,6 @@
 {
   "name": "Catch the Ball",
+  "description": "A fun ball catching game",
   "short_name": "BallCatch",
   "start_url": "index.html",
   "display": "standalone",
