@@ -1,4 +1,4 @@
-gDOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -217,6 +217,9 @@ gDOCTYPE html>
   window.addEventListener('error', (e) => {
     try { toast('Error: ' + (e.message || 'unknown').slice(0,60)); } catch(_){}
   });
+  window.addEventListener('unhandledrejection', (e) => {
+    try { toast('DB error: ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason)).slice(0,60)); } catch(_){}
+  });
 
   function requireDb(){
     if (!db) {
@@ -312,7 +315,7 @@ gDOCTYPE html>
       roomRef.child('p2').update({ present:true, ready:false, hp:MAX_HP, x:W*0.75, y:H*0.5, score:0 });
       roomRef.child('status').set('ready');
       listenRoom();
-    });
+    }).catch(err => toast('Join failed: ' + err.message.slice(0,50)));
   });
 
   function listenRoom(){
@@ -455,9 +458,9 @@ gDOCTYPE html>
       const b = snap.val();
       if (!b || b.owner === myKey) return; // don't re-simulate my own bullets from echo
       bullets.push({
-        id: snap.key, owner:b.owner, x:b.x, y:b.y,
+        id: snap.key, owner:b.owner, x:b.x, y:b.y, curX:b.x, curY:b.y,
         vx: Math.cos(b.ang)*BULLET_SPEED, vy: Math.sin(b.ang)*BULLET_SPEED,
-        spawnT: Date.now(), mine:false
+        spawnT: Date.now(), age:0, mine:false
       });
     });
   }
@@ -519,6 +522,8 @@ gDOCTYPE html>
 
   fireBtn.addEventListener('touchstart', e => {
     e.stopPropagation();
+    fireBtn.style.transform = 'scale(0.88)';
+    setTimeout(()=> fireBtn.style.transform = '', 100);
     fireBullet();
   }, {passive:true});
 
@@ -529,7 +534,7 @@ gDOCTYPE html>
     const id = 'b'+now+Math.floor(Math.random()*1000);
     const startX = me.x + Math.cos(me.facing)*(PLAYER_R+6);
     const startY = me.y + Math.sin(me.facing)*(PLAYER_R+6);
-    bullets.push({ id, owner:myKey, x:startX, y:startY, vx:Math.cos(me.facing)*BULLET_SPEED, vy:Math.sin(me.facing)*BULLET_SPEED, spawnT:now, mine:true });
+    bullets.push({ id, owner:myKey, x:startX, y:startY, curX:startX, curY:startY, vx:Math.cos(me.facing)*BULLET_SPEED, vy:Math.sin(me.facing)*BULLET_SPEED, spawnT:now, age:0, mine:true });
     if (bulletsRef){
       bulletsRef.child(id).set({ owner:myKey, x:startX, y:startY, ang:me.facing, t:now });
       setTimeout(()=> bulletsRef.child(id).remove(), BULLET_LIFETIME + 300);
@@ -537,14 +542,20 @@ gDOCTYPE html>
   }
 
   let roundEnding = false;
+  let lastFrameT = 0;
 
   function battleLoop(t){
     if (!battleActive){ return; }
 
-    // movement
+    if (!lastFrameT) lastFrameT = t;
+    const frameDt = Math.min(t - lastFrameT, 40); // cap so lag spikes don't cause huge jumps
+    lastFrameT = t;
+    const step = frameDt / 16.67;
+
+    // movement (frame-rate independent)
     if (joyDX !== 0 || joyDY !== 0){
-      me.x += joyDX * MOVE_SPEED;
-      me.y += joyDY * MOVE_SPEED;
+      me.x += joyDX * MOVE_SPEED * step;
+      me.y += joyDY * MOVE_SPEED * step;
       me.x = Math.max(PLAYER_R, Math.min(W-PLAYER_R, me.x));
       me.y = Math.max(PLAYER_R, Math.min(H-PLAYER_R, me.y));
     }
@@ -555,14 +566,14 @@ gDOCTYPE html>
       if (roomRef) roomRef.child(myKey).update({ x: me.x, y: me.y });
     }
 
-    // bullets
+    // bullets — move incrementally each frame (never teleport-and-vanish from lag spikes)
     for (let i = bullets.length-1; i>=0; i--){
       const b = bullets[i];
-      const dt = (now - b.spawnT)/16.67;
-      b.curX = b.x + b.vx*dt;
-      b.curY = b.y + b.vy*dt;
+      b.curX += b.vx * step;
+      b.curY += b.vy * step;
+      b.age += frameDt;
 
-      if (b.curX < -20 || b.curX > W+20 || b.curY < -20 || b.curY > H+20 || (now-b.spawnT) > BULLET_LIFETIME){
+      if (b.curX < -20 || b.curX > W+20 || b.curY < -20 || b.curY > H+20 || b.age > BULLET_LIFETIME){
         bullets.splice(i,1);
         continue;
       }
@@ -700,4 +711,4 @@ gDOCTYPE html>
 })();
 </script>
 </body>
-</html
+</html>
